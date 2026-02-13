@@ -1,0 +1,5 @@
+# Bun configuration for turbopack
+[install]
+# Use workspace root for dependencies when possible
+workspace = true
+

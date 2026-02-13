@@ -1,0 +1,28 @@
+{
+  "name": "emojis-multiple-images-bot",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "start": "turbo run start",
+    "dev:bot": "turbo run dev --filter=bot",
+    "dev:worker": "turbo run dev --filter=worker",
+    "start:bot": "turbo run start --filter=bot",
+    "start:worker": "turbo run start --filter=worker",
+    "db:generate": "turbo run generate --filter=@emojis-bot/db",
+    "db:migrate": "turbo run migrate --filter=@emojis-bot/db",
+    "db:push": "turbo run push --filter=@emojis-bot/db",
+    "db:studio": "cd packages/db && drizzle-kit studio"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.3.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "packageManager": "npm@10.0.0"
+}
+
