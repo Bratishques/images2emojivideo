@@ -6,5 +6,7 @@ dist
 *.log
 .turbo
 packages/db/drizzle
+./docs
+apps/worker/temp
 
 

@@ -11,10 +11,18 @@ import { createJob } from "./create-job";
 
 const logger = new Logger({ context: "Bot" });
 
+// Interface for photo data
+interface PhotoData {
+  messageId: number;
+  fileId: string;
+  width: number;
+  height: number;
+}
+
 // Object to store timers for media groups
 const timers: Record<string, NodeJS.Timeout> = {}
 // Object to store photos for media groups
-const mediaGroupIdToPhoto: Record<string, string[]> = {}
+const mediaGroupIdToPhoto: Record<string, PhotoData[]> = {}
 // Object to store users for media groups
 const mediaGroupIdToUser: Record<string, number> = {}
 
@@ -103,8 +111,6 @@ bot.action("cancel", async (ctx: Context) => {
   await ctx.deleteMessage();
 });
 
-// Store file IDs temporarily for batch processing
-const pendingImages = new Map<number, string[]>();
 
 // Handle photo files messages
 bot.on("document", async (ctx: Context) => {
@@ -118,30 +124,112 @@ bot.on("document", async (ctx: Context) => {
 bot.on("photo", async (ctx: Context) => {
   const message = ctx.message as Message.MediaMessage & Message.PhotoMessage;
   if (!message || !message.media_group_id || !ctx.from || !message.photo) return;
-  const photoArray = mediaGroupIdToPhoto[message.media_group_id as string] || [];
+  
+  const mediaGroupId = message.media_group_id as string;
+  const userId = ctx.from.id;
+  // Store user ID for this media group
+  mediaGroupIdToUser[mediaGroupId] = userId;
+  
   // we use the 4th photo in the array because the first one is the smallest and the last one is the largest
-  photoArray.push(message.photo[3].file_id);
-  mediaGroupIdToPhoto[message.media_group_id] = photoArray;
-  if (timers[message.media_group_id]) {
-    clearTimeout(timers[message.media_group_id]);
+  const largestPhoto = message.photo[message.photo.length - 1];
+  if (!largestPhoto || !largestPhoto.width || !largestPhoto.height) {
+    logger.error(`Missing photo dimensions for media group ${mediaGroupId}`);
+    return;
   }
-  timers[message.media_group_id] = setTimeout(async () => {
-    const photoArray = mediaGroupIdToPhoto[message.media_group_id as string];
-    await createJob(message.media_group_id as string, photoArray, ctx.from?.id as number);
-    await bot.telegram.sendMessage(ctx.from?.id as number, "Your job has been created. Please wait for it to be processed.");
+  
+  const photoData: PhotoData = {
+    messageId: message.message_id,
+    fileId: largestPhoto.file_id,
+    width: largestPhoto.width,
+    height: largestPhoto.height,
+  };
+  
+  const photoArray = mediaGroupIdToPhoto[mediaGroupId] || [];
+  photoArray.push(photoData);
+  mediaGroupIdToPhoto[mediaGroupId] = photoArray;
+  
+  if (timers[mediaGroupId]) {
+    clearTimeout(timers[mediaGroupId]);
+  }
+  
+  timers[mediaGroupId] = setTimeout(async () => {
+    try {
+      const photos = mediaGroupIdToPhoto[mediaGroupId];
+      const currentUserId = mediaGroupIdToUser[mediaGroupId];
+      
+      if (!photos || photos.length === 0 || !currentUserId) {
+        return;
+      }
+      
+      // Sort photos by message_id in ascending order
+      photos.sort((a, b) => a.messageId - b.messageId);
+      
+      // Check aspect ratio for all photos
+      const firstAspectRatio = photos[0].width / photos[0].height;
+      const aspectRatiosMatch = photos.every((photo) => {
+        const aspectRatio = photo.width / photo.height;
+        // Use small epsilon for floating point comparison
+        return Math.abs(aspectRatio - firstAspectRatio) < 0.0001;
+      });
+      
+      if (!aspectRatiosMatch) {
+        const aspectRatios = photos.map(p => `${p.width}/${p.height} (${(p.width / p.height).toFixed(4)})`).join(", ");
+        logger.error(
+          `Aspect ratio mismatch for media group ${mediaGroupId}. ` +
+          `Aspect ratios: ${aspectRatios}`
+        );
+        
+        await bot.telegram.sendMessage(
+          currentUserId,
+          "Ошибка: все изображения должны иметь одинаковое соотношение сторон. Пожалуйста, отправьте изображения с одинаковым aspect ratio."
+        );
+        
+        // Cleanup
+        delete mediaGroupIdToPhoto[mediaGroupId];
+        delete mediaGroupIdToUser[mediaGroupId];
+        delete timers[mediaGroupId];
+        return;
+      }
+      
+      // Extract file IDs in sorted order
+      const fileIds = photos.map(photo => photo.fileId);
+      
+      await createJob(mediaGroupId, fileIds, currentUserId);
+      await bot.telegram.sendMessage(currentUserId, "Your job has been created. Please wait for it to be processed.");
+      
+      // Cleanup
+      delete mediaGroupIdToPhoto[mediaGroupId];
+      delete mediaGroupIdToUser[mediaGroupId];
+      delete timers[mediaGroupId];
+    } catch (error) {
+      logger.error(
+        `Error processing media group ${mediaGroupId}`,
+        error instanceof Error ? error.stack : String(error)
+      );
+      
+      const userId = mediaGroupIdToUser[mediaGroupId];
+      if (userId) {
+        try {
+          await bot.telegram.sendMessage(userId, "Произошла ошибка при обработке изображений. Пожалуйста, попробуйте еще раз.");
+        } catch (sendError) {
+          logger.error("Failed to send error message to user", sendError instanceof Error ? sendError.stack : String(sendError));
+        }
+      }
+      
+      // Cleanup on error
+      delete mediaGroupIdToPhoto[mediaGroupId];
+      delete mediaGroupIdToUser[mediaGroupId];
+      delete timers[mediaGroupId];
+    }
   }, 2000);
-  // try {
-  //   await createJob(message.media_group_id, message.photo.map(photo => photo.file_id), ctx.from.id);
-  // } catch (error) {
-  //   // Errors are awaited because telegram sends multiple messages in a single update
-  // }
 });
 
 
 
 // Handle text messages
 bot.on("text", async (ctx: Context) => {
-  const text = ctx.message?.text;
+  const message = ctx.message as Message.TextMessage;
+  const text = message?.text;
   if (!text) return;
   
   if (!text.startsWith("/")) {

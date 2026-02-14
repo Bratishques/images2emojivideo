@@ -1,4 +1,4 @@
-import { db, jobs, users, packs } from "@emojis-bot/db";
+import { db, jobs, users, packs, User } from "@emojis-bot/db";
 import { eq, and } from "drizzle-orm";
 import { Logger } from "@emojis-bot/logger";
 import { processImage } from "./services/image-processing.service";
@@ -6,45 +6,52 @@ import { processImage } from "./services/image-processing.service";
 const logger = new Logger({ context: "Worker" });
 
 logger.log("Worker started");
-
+let busy = false;
 // Process pending jobs
 async function processJobs() {
-  try {
-    const transaction = await db.transaction(async (tx) => {
-      const pendingJobs = await tx.select().from(jobs).where(eq(jobs.status, "pending")).limit(1);
-      const job = pendingJobs[0];
-      if (!job) {
+  if (!busy) {
+    try {
+      const transaction = await db.transaction(async (tx) => {
+        const pendingJobs = await tx
+        .select()
+        .from(jobs)
+        .where(eq(jobs.status, "pending"))
+        .leftJoin(users, eq(jobs.userId, users.id))
+        .limit(1);
+        const job = pendingJobs[0];
+        if (!job) {
+          return;
+        }
+        busy = true;
+        await tx.update(jobs).set({ status: "processing", updatedAt: new Date() }).where(eq(jobs.id, job.jobs.id));
+        return job;
+      }, {
+        isolationLevel: "serializable",
+      });
+
+      if (!transaction) {
+        logger.debug("No pending jobs found");
         return;
       }
-      await tx.update(jobs).set({ status: "processing", updatedAt: new Date() }).where(eq(jobs.id, job.id));
-      return job;
-    }, {
-      isolationLevel: "serializable",
-    });
 
-    if (!transaction) {
-      logger.debug("No pending jobs found");
-      return;
+      const job = transaction;
+      logger.log(`Processing job ${job.jobs.id}...`);
+      const fileIds = JSON.parse(job.jobs.fileIds) as string[];
+      const resultFilePath = await processImage(fileIds, job.jobs, job.users as User);
+      await db
+        .update(jobs)
+        .set({
+          status: "completed",
+          completedAt: new Date(),
+          updatedAt: new Date(),
+          resultFileId: resultFilePath,
+        })
+        .where(eq(jobs.id, job.jobs.id));
+
+      logger.log(`Job ${job.jobs.id} completed successfully`);
+    } catch (error) {
+      logger.error("Error in processJobs", error instanceof Error ? error.stack : String(error));
     }
-
-    const job = transaction;
-    logger.log(`Processing job ${job.id}...`);
-    const fileIds = JSON.parse(job.fileIds) as string[];
-    const resultFilePath = await processImage(fileIds);
-    await db
-      .update(jobs)
-      .set({
-        status: "completed",
-        completedAt: new Date(),
-        updatedAt: new Date(),
-        resultFileId: resultFilePath,
-      })
-      .where(eq(jobs.id, job.id));
-
-    logger.log(`Job ${job.id} completed successfully`);
-  } catch (error) {
-    logger.log(error);
-    logger.error("Error in processJobs", error instanceof Error ? error.stack : String(error));
   }
 
 }
