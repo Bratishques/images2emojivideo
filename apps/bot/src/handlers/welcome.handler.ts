@@ -5,9 +5,8 @@ import { Markup } from "telegraf";
  * Welcome message content
  */
 const welcomeMessage = `
-Hello! I'm the Emojis Multiple Images Bot.
-I can help you create multiple images with emojis.
-To get started, send me a message with multiple images you want to be made into emojis.
+Hello! I turn a sequence of photos into an animated custom emoji pack.
+Send me 2–10 photos with the same aspect ratio as one album. Each photo becomes a frame of the animation.
 `;
 
 /**

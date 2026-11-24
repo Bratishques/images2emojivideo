@@ -1,42 +1,75 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalEnv": ["TELEGRAM_BOT_TOKEN", "DATABASE_URL"],
+  "globalEnv": [
+    "TELEGRAM_BOT_TOKEN",
+    "DATABASE_URL"
+  ],
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": [".elysia/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        ".elysia/**",
+        "dist/**"
+      ]
     },
     "dev": {
       "cache": false,
       "persistent": true,
-      "env": ["TELEGRAM_BOT_TOKEN", "DATABASE_URL"]
+      "env": [
+        "TELEGRAM_BOT_TOKEN",
+        "DATABASE_URL"
+      ]
     },
     "start": {
-      "dependsOn": ["build"],
+      "dependsOn": [
+        "build"
+      ],
       "cache": false,
-      "env": ["TELEGRAM_BOT_TOKEN", "DATABASE_URL"]
+      "env": [
+        "TELEGRAM_BOT_TOKEN",
+        "DATABASE_URL"
+      ]
     },
     "generate": {
       "cache": false,
-      "env": ["DATABASE_URL"]
+      "env": [
+        "DATABASE_URL"
+      ]
     },
     "migrate": {
       "cache": false,
-      "env": ["DATABASE_URL"]
+      "env": [
+        "DATABASE_URL"
+      ]
     },
     "push": {
       "cache": false,
-      "env": ["DATABASE_URL"]
+      "env": [
+        "DATABASE_URL"
+      ]
     },
     "studio": {
       "cache": false,
       "persistent": true,
-      "env": ["DATABASE_URL"]
+      "env": [
+        "DATABASE_URL"
+      ]
     },
     "introspect": {
       "cache": false,
-      "env": ["DATABASE_URL"]
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    "typecheck": {
+      "dependsOn": [
+        "^typecheck"
+      ]
+    },
+    "test": {
+      "cache": false
     }
   }
 }
-

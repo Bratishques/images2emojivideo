@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// Bun automatically loads .env files from the workspace root
+// The package scripts load the root .env with `bun --env-file=../../.env`
 // This file validates and exports environment variables using Zod
 
 // Define environment variable schema

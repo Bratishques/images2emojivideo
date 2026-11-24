@@ -2,6 +2,7 @@ import { writeFile, readdir, unlink } from "fs/promises";
 import path from "path";
 import { Logger } from "@emojis-bot/logger";
 import { spawn } from "child_process";
+import { getTempDir } from "./file-utils";
 
 const logger = new Logger({ context: "Video" });
 
@@ -14,7 +15,7 @@ const groupPiecesByPosition = async (
   rows: number,
   cols: number
 ): Promise<Map<string, string[]>> => {
-  const tempDir = path.join(process.cwd(), 'temp');
+  const tempDir = getTempDir();
   const files = await readdir(tempDir);
   
   // Filter files that match the pattern ${jobId}-${imageIndex}-${row}-${col}.png
@@ -153,7 +154,7 @@ export const createVideosFromPieces = async (
   cols: number
 ): Promise<string[]> => {
   const grouped = await groupPiecesByPosition(jobId, numImages, rows, cols);
-  const tempDir = path.join(process.cwd(), 'temp');
+  const tempDir = getTempDir();
   const videoPaths: string[] = [];
   
   // Create video for each position
