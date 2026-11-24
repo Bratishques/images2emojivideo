@@ -13,7 +13,10 @@
     "db:generate": "turbo run generate --filter=@emojis-bot/db",
     "db:migrate": "turbo run migrate --filter=@emojis-bot/db",
     "db:push": "turbo run push --filter=@emojis-bot/db",
-    "db:studio": "cd packages/db && drizzle-kit studio"
+    "db:studio": "bun run --cwd packages/db studio",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "preview": "bun run --cwd apps/worker preview"
   },
   "devDependencies": {
     "turbo": "^2.0.0",
@@ -23,6 +26,5 @@
     "apps/*",
     "packages/*"
   ],
-  "packageManager": "npm@10.0.0"
+  "packageManager": "bun@1.4.4"
 }
-

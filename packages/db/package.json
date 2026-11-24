@@ -5,11 +5,12 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "generate": "drizzle-kit generate",
-    "migrate": "drizzle-kit migrate",
-    "push": "drizzle-kit push",
-    "studio": "drizzle-kit studio",
-    "introspect": "drizzle-kit introspect"
+    "generate": "bun --env-file=../../.env run drizzle-kit generate",
+    "migrate": "bun --env-file=../../.env run drizzle-kit migrate",
+    "push": "bun --env-file=../../.env run drizzle-kit push",
+    "studio": "bun --env-file=../../.env run drizzle-kit studio",
+    "introspect": "bun --env-file=../../.env run drizzle-kit introspect",
+    "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
     "drizzle-orm": "0.45.1",
@@ -20,4 +21,3 @@
     "drizzle-kit": "0.31.9"
   }
 }
-

@@ -3,10 +3,9 @@ node_modules
 .env.local
 .DS_Store
 dist
+.elysia
 *.log
 .turbo
 packages/db/drizzle
-./docs
 apps/worker/temp
-
-
+temp

@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "bun run --watch src/index.ts",
+    "dev": "bun --env-file=../../.env --watch src/index.ts",
     "build": "bun build src/index.ts --outdir .elysia --target bun",
-    "start": "bun run .elysia/index.js"
+    "start": "bun --env-file=../../.env .elysia/index.js",
+    "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
     "@emojis-bot/db": "*",
@@ -19,4 +20,3 @@
     "bun-types": "latest"
   }
 }
-
