@@ -67,11 +67,13 @@ bot.action("help_info", async (ctx: Context) => {
   const helpMessage = `
 📖 Bot Help
 
-This bot helps you process multiple images with emojis.
+The bot turns a sequence of photos into an animated custom emoji pack.
 
 How to use:
-• Send one or more images
-• The bot will process them
+• Send 2–10 photos as one album (media group), in the order of the animation frames
+• All photos must have the same aspect ratio
+• Each photo is cut into a grid 8 cells wide; every cell becomes a 3-second looping video emoji
+• When the pack is ready, the bot sends you a link to add it
   `;
 
   const keyboard = Markup.inlineKeyboard([
@@ -79,26 +81,6 @@ How to use:
   ]);
 
   await ctx.editMessageText(helpMessage.trim(), keyboard);
-});
-
-bot.action("settings", async (ctx: Context) => {
-  await ctx.answerCbQuery();
-  const settingsMessage = `
-⚙️ Settings
-
-Here you can configure bot preferences:
-• Image quality settings
-• Emoji size preferences
-• Processing options
-
-Settings panel coming soon!
-  `;
-
-  const keyboard = Markup.inlineKeyboard([
-    [Markup.button.callback("🔙 Back to Main Menu", "back_to_start")],
-  ]);
-
-  await ctx.editMessageText(settingsMessage.trim(), keyboard);
 });
 
 bot.action("back_to_start", async (ctx: Context) => {
@@ -123,14 +105,18 @@ bot.on("document", async (ctx: Context) => {
 // Handle photo messages
 bot.on("photo", async (ctx: Context) => {
   const message = ctx.message as Message.MediaMessage & Message.PhotoMessage;
-  if (!message || !message.media_group_id || !ctx.from || !message.photo) return;
+  if (!message || !ctx.from || !message.photo) return;
+  if (!message.media_group_id) {
+    await ctx.reply("Please send at least two photos as one album: each photo becomes a frame of the animation.");
+    return;
+  }
   
   const mediaGroupId = message.media_group_id as string;
   const userId = ctx.from.id;
   // Store user ID for this media group
   mediaGroupIdToUser[mediaGroupId] = userId;
   
-  // we use the 4th photo in the array because the first one is the smallest and the last one is the largest
+  // Telegram sends several sizes of the same photo; the last one is the largest
   const largestPhoto = message.photo[message.photo.length - 1];
   if (!largestPhoto || !largestPhoto.width || !largestPhoto.height) {
     logger.error(`Missing photo dimensions for media group ${mediaGroupId}`);
@@ -181,7 +167,7 @@ bot.on("photo", async (ctx: Context) => {
         
         await bot.telegram.sendMessage(
           currentUserId,
-          "Ошибка: все изображения должны иметь одинаковое соотношение сторон. Пожалуйста, отправьте изображения с одинаковым aspect ratio."
+          "Error: all photos must have the same aspect ratio. Please resend photos with matching proportions."
         );
         
         // Cleanup
@@ -210,7 +196,7 @@ bot.on("photo", async (ctx: Context) => {
       const userId = mediaGroupIdToUser[mediaGroupId];
       if (userId) {
         try {
-          await bot.telegram.sendMessage(userId, "Произошла ошибка при обработке изображений. Пожалуйста, попробуйте еще раз.");
+          await bot.telegram.sendMessage(userId, "Something went wrong while processing the photos. Please try again.");
         } catch (sendError) {
           logger.error("Failed to send error message to user", sendError instanceof Error ? sendError.stack : String(sendError));
         }
@@ -234,14 +220,10 @@ bot.on("text", async (ctx: Context) => {
   
   if (!text.startsWith("/")) {
     const keyboard = Markup.inlineKeyboard([
-      [Markup.button.callback("📸 Send Images", "send_images")],
       [Markup.button.callback("ℹ️ Help", "help_info")],
     ]);
 
-    await ctx.reply(
-      `You said: ${text}\n\nUse the buttons below to interact with the bot!`,
-      keyboard
-    );
+    await ctx.reply("Send me 2–10 photos as one album to turn them into an animated emoji pack.", keyboard);
   }
 });
 
