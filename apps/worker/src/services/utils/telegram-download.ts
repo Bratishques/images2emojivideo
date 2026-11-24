@@ -2,7 +2,7 @@ import { writeFile } from "fs/promises";
 import path from "path";
 import { Logger } from "@emojis-bot/logger";
 import { TelegramGetFileResponse } from "./telegram.types";
-import { ensureDirectoryExists } from "./file-utils";
+import { ensureDirectoryExists, getTempDir } from "./file-utils";
 
 const logger = new Logger({ context: "TelegramDownload" });
 
@@ -21,10 +21,12 @@ export const downloadFileFromTelegram = async (fileId: string, jobId: number, in
     logger.debug(`File path retrieved: ${filePath} for file ${fileId}`);
     
     const imageDownloadLink = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${filePath}`;
-    logger.debug(`Image download link: ${imageDownloadLink}`);
     const imageResponse = await fetch(imageDownloadLink);
+    if (!imageResponse.ok) {
+      throw new Error(`Failed to download file ${fileId}: HTTP ${imageResponse.status}`);
+    }
     const imageFile = await imageResponse.blob();
-    const tempDir = path.join(process.cwd(), 'temp');
+    const tempDir = getTempDir();
     await ensureDirectoryExists(tempDir);
     const imageFilePath = path.join(tempDir, `${jobId}-${index}.png`);
     await writeFile(imageFilePath, Buffer.from(await imageFile.arrayBuffer()));

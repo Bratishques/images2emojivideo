@@ -1,6 +1,7 @@
 import path from "path";
 import { Logger } from "@emojis-bot/logger";
 import sharp from "sharp";
+import { ensureDirectoryExists, getTempDir } from "./file-utils";
 
 const logger = new Logger({ context: "ImageGrid" });
 
@@ -16,26 +17,13 @@ export const getImageDimensions = async (imagePath: string): Promise<{ width: nu
 };
 
 /**
- * Calculates grid size based on aspect ratio
- * Maximum horizontal size is 8
- * Returns { cols, rows } where cols <= 8
+ * Calculates grid size based on aspect ratio.
+ * The grid is always 8 cells wide (the result message lays the emoji out in rows of 8);
+ * the number of rows keeps the cells close to square and is at least 1.
  */
 export const calculateGridSize = (aspectRatio: number): { cols: number; rows: number } => {
-  // Start with maximum columns (8)
-  let cols = 8;
-  let rows = Math.round(cols / aspectRatio);
-  
-  // If rows would be less than 1, adjust
-  if (rows < 1) {
-    rows = 1;
-    cols = Math.round(rows * aspectRatio);
-    // Ensure cols doesn't exceed 8
-    if (cols > 8) {
-      cols = 8;
-      rows = Math.round(cols / aspectRatio);
-    }
-  }
-  
+  const cols = 8;
+  const rows = Math.max(1, Math.round(cols / aspectRatio));
   return { cols, rows };
 };
 
@@ -61,7 +49,8 @@ export const splitImageIntoGrid = async (
   const pieceHeight = Math.floor(height / rows);
   
   const pieces: string[] = [];
-  const tempDir = path.join(process.cwd(), 'temp');
+  const tempDir = getTempDir();
+  await ensureDirectoryExists(tempDir);
   
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {

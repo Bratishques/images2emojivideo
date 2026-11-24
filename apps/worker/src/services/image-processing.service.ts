@@ -5,8 +5,14 @@ import { getImageDimensions, calculateGridSize, splitImageIntoGrid } from "./uti
 import { createVideosFromPieces } from "./utils/video";
 import { uploadStickerFile } from "./utils/telegram-upload";
 import { Job, User } from "@emojis-bot/db";
+import { cleanupJobFiles } from "./utils/file-utils";
 
 const logger = new Logger({ context: "ImageProcessingService" });
+
+const escapeHtml = (text: string): string =>
+  text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+const ownerName = (user: User): string => user.username || user.firstName || `user${user.telegramId}`;
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN as string);
 const botUsername = (await bot.telegram.getMe()).username;
 
@@ -15,6 +21,14 @@ export const processImage = async (
   {id: jobId}: Job,
   user: User
 ) => {
+  try {
+    return await buildStickerSet(fileIds, jobId, user);
+  } finally {
+    await cleanupJobFiles(jobId);
+  }
+};
+
+const buildStickerSet = async (fileIds: string[], jobId: number, user: User): Promise<string> => {
   logger.log(`Starting image processing for job ${jobId}, user ${user.username} (${user.telegramId})`);
   logger.log(`Processing ${fileIds.length} images`);
   
@@ -94,15 +108,12 @@ export const processImage = async (
   
   logger.log(`Stage 6 completed: ${uploadedFiles.length} videos uploaded successfully`);
   
-  const firstSticker = uploadedFiles[0];
-
-  const fileData = await bot.telegram.getFileLink(firstSticker.file_id);
   // Stage 7: Create sticker set
   logger.log(`Stage 7: Creating sticker set "${stickersSetName}"`);
   await bot.telegram.createNewStickerSet(
     user.telegramId,
     stickersSetName,
-    `🎥 ${user.username}'s video stickers`,
+    `🎥 ${ownerName(user)}'s video stickers`,
     {
       sticker_type: "custom_emoji",
       stickers: [{
@@ -118,7 +129,6 @@ export const processImage = async (
   logger.log(`Stage 8: Adding ${uploadedFiles.length - 1} stickers to the set`);
   for (let i = 1; i < uploadedFiles.length; i++) {
     const sticker = uploadedFiles[i];
-    console.log(sticker);
     logger.debug(`Adding sticker ${i + 1}/${uploadedFiles.length} to set`);
     try {
       await bot.telegram.addStickerToSet(
@@ -143,11 +153,12 @@ export const processImage = async (
   }
   logger.log(`Stage 8 completed: ${uploadedFiles.length - 1} stickers added to the set`);
   
-  // Stage 9: Send all stickers to the specified Telegram ID
-  const targetTelegramId = 694605860;
+  // Stage 9: Send the link to the set and a preview of all emoji to the user who created the job
+  const targetTelegramId = user.telegramId;
   logger.log(`Stage 9: Sending ${uploadedFiles.length} stickers to Telegram ID ${targetTelegramId}`);
   const stickerSet = await bot.telegram.getStickerSet(stickersSetName);
-  let message = `🎥 ${user.username}'s video stickers t.me/addemoji/${stickersSetName}`;
+  const link = `https://t.me/addemoji/${stickersSetName}`;
+  let message = `🎥 ${escapeHtml(ownerName(user))}'s video stickers ${link}`;
   message += "\n\n";
 
   for (let i = 0; i < stickerSet.stickers.length; i++) {
@@ -158,19 +169,23 @@ export const processImage = async (
       }
   }
   try {
-    // Send each sticker individually using file_id
     await bot.telegram.sendMessage(targetTelegramId, message, {
       parse_mode: "HTML",
     });
-    logger.log(`Stage 9 completed: 2 stickers sent successfully to ${targetTelegramId}`);
+    logger.log(`Stage 9 completed: ${stickerSet.stickers.length} stickers sent to ${targetTelegramId}`);
   } catch (error) {
     logger.error(
       `Stage 9 failed: Failed to send stickers to ${targetTelegramId}`,
       error instanceof Error ? error.stack : String(error)
     );
-    // Don't throw - continue even if sending fails
+    // The set is already created: fall back to a plain message with the link only
+    await bot.telegram
+      .sendMessage(targetTelegramId, `🎥 Your emoji pack is ready: ${link}`)
+      .catch((fallbackError: unknown) =>
+        logger.error("Failed to send the fallback message", fallbackError instanceof Error ? fallbackError.stack : String(fallbackError)),
+      );
   }
   
   logger.log(`Image processing completed successfully for job ${jobId}`);
-  return "path";
+  return stickersSetName;
 };
